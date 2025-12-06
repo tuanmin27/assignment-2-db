@@ -1,5 +1,5 @@
 -- CHỌN DATABASE CỦA BẠN
-USE ECommerceDB_Final_Part1;
+USE EcommerceDB;
 
 -- Đổi delimiter để tạo function/procedure/trigger
 DELIMITER $$
