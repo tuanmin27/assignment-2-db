@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Products{% endblock %}
+{% block content %}
+<h3 class="mb-3">Products</h3>
+
+<form class="row g-2 mb-3">
+  <div class="col-md-3">
+    <input class="form-control" name="q" placeholder="Search name"
+           value="{{ search or '' }}">
+  </div>
+  <div class="col-md-3">
+    <select class="form-select" name="type_id">
+      <option value="">-- All Types --</option>
+      {% for t in types %}
+        <option value="{{ t.Type_ID }}" {% if selected_type|int == t.Type_ID %}selected{% endif %}>
+          {{ t.Type_name }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <select class="form-select" name="shop_id">
+      <option value="">-- All Shops --</option>
+      {% for s in shops %}
+        <option value="{{ s.Shop_ID }}" {% if selected_shop|int == s.Shop_ID %}selected{% endif %}>
+          {{ s.Shop_name }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <select class="form-select" name="sort">
+      <option value="">Name A → Z</option>
+      <option value="NAME_DESC" {% if sort == 'NAME_DESC' %}selected{% endif %}>Name Z → A</option>
+      <option value="PRICE_ASC" {% if sort == 'PRICE_ASC' %}selected{% endif %}>Price ↑</option>
+      <option value="PRICE_DESC" {% if sort == 'PRICE_DESC' %}selected{% endif %}>Price ↓</option>
+    </select>
+  </div>
+  <div class="col-md-12 mt-2">
+    <button class="btn btn-secondary">Filter</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('product_list') }}">Reset</a>
+    <a class="btn btn-success float-end" href="{{ url_for('product_create') }}">+ New Product</a>
+  </div>
+</form>
+
+<table class="table table-striped table-bordered">
+  <thead>
+  <tr>
+    <th>ID</th><th>Name</th><th>Type</th><th>Shop</th>
+    <th>Price</th><th>Quantity</th><th>Actions</th>
+  </tr>
+  </thead>
+  <tbody>
+  {% for p in products %}
+    <tr>
+      <td>{{ p.Product_ID }}</td>
+      <td>{{ p.Name }}</td>
+      <td>{{ p.Type_name }}</td>
+      <td>{{ p.Shop_name }}</td>
+      <td>{{ p.Price }}</td>
+      <td>{{ p.Quantity }}</td>
+      <td>
+        <a class="btn btn-sm btn-primary"
+           href="{{ url_for('product_edit', product_id=p.Product_ID) }}">Edit</a>
+        <form method="post"
+              action="{{ url_for('product_delete', product_id=p.Product_ID) }}"
+              style="display:inline"
+              onsubmit="return confirm('Delete this product?');">
+          <button class="btn btn-sm btn-danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

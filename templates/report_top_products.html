@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Top Products by Type{% endblock %}
+{% block content %}
+<h3 class="mb-3">Top Products by Type</h3>
+
+<form method="post" class="row g-2 mb-3">
+  <div class="col-md-4">
+    <label class="form-label">Type</label>
+    <select class="form-select" name="type_id">
+      <option value="">-- Select Type --</option>
+      {% for t in types %}
+        <option value="{{ t.Type_ID }}"
+          {% if selected_type and selected_type|int == t.Type_ID %}selected{% endif %}>
+          {{ t.Type_name }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-4">
+    <label class="form-label">Min Quantity</label>
+    <input class="form-control" name="min_qty" value="{{ min_qty or '1' }}">
+  </div>
+  <div class="col-md-4 d-flex align-items-end">
+    <button class="btn btn-primary w-100">View Report</button>
+  </div>
+</form>
+
+{% if results is not none %}
+<table class="table table-striped">
+  <thead>
+  <tr>
+    <th>Product ID</th><th>Name</th><th>Type</th><th>Total Sold</th>
+  </tr>
+  </thead>
+  <tbody>
+  {% for r in results %}
+    <tr>
+      <td>{{ r.Product_ID }}</td>
+      <td>{{ r.Name }}</td>
+      <td>{{ r.Type_name }}</td>
+      <td>{{ r.total_sold }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if product else 'New' }} Product{% endblock %}
+{% block content %}
+<h3 class="mb-3">{{ 'Edit' if product else 'New' }} Product</h3>
+<form method="post">
+  <div class="mb-3">
+    <label class="form-label">Name</label>
+    <input class="form-control" name="name"
+           value="{{ product.Name if product else '' }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Price</label>
+    <input class="form-control" name="price"
+           value="{{ product.Price if product else '' }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Quantity</label>
+    <input class="form-control" name="quantity"
+           value="{{ product.Quantity if product else '' }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Type</label>
+    <select class="form-select" name="type_id">
+      {% for t in types %}
+        <option value="{{ t.Type_ID }}"
+          {% if product and product.Type_ID == t.Type_ID %}selected{% endif %}>
+          {{ t.Type_name }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Shop</label>
+    <select class="form-select" name="shop_id">
+      {% for s in shops %}
+        <option value="{{ s.Shop_ID }}"
+          {% if product and product.Shop_ID == s.Shop_ID %}selected{% endif %}>
+          {{ s.Shop_name }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <button class="btn btn-primary">Save</button>
+  <a class="btn btn-secondary" href="{{ url_for('product_list') }}">Cancel</a>
+</form>
+{% endblock %}
