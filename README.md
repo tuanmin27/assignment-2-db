@@ -26,7 +26,7 @@ SOURCE assignment2_part2_script.sql;
 
 Chọn database:
 
-USE ECommerceDB_Final_Part1;
+USE ECommerceDB;
 SHOW TABLES;
 SELECT * FROM PRODUCT;
 
@@ -90,7 +90,7 @@ DB_CONFIG = {
     "host": "localhost",
     "database": "ECommerceDB_Final_Part1",  # đúng tên DB đã import
     "user": "sManager",                     # user MySQL đã tạo
-    "password": "123456",                   # mật khẩu đúng với MySQL
+    "password": "123456789@K",                   # mật khẩu đúng với MySQL
 }
 
 def get_connection():
@@ -103,7 +103,7 @@ host: localhost nếu MySQL chạy trên máy hiện tại.
 
 database: đúng tên schema trong MySQL (ECommerceDB_Final_Part1).
 
-user / password: trùng với user đã tạo ở bước 2.2 (sManager / 123456).
+user / password: trùng với user đã tạo ở bước 2.2 (sManager / 123456789@K).
 
 Nếu bạn dùng user khác (ví dụ root) thì chỉ cần đổi user và password cho khớp.
 
@@ -122,9 +122,7 @@ source .venv/bin/activate
 
 Cài các thư viện cần thiết:
 
-pip install -r requirements.txt
-# hoặc, nếu không có file requirements.txt:
-# pip install flask mysql-connector-python
+pip install flask mysql-connector-python
 
 6. Chạy thử test_db.py để kiểm tra kết nối DB
 
