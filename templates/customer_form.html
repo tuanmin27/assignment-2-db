@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Edit Customer #{{ customer.Customer_ID }}{% endblock %}
+{% block content %}
+<h3 class="mb-3">Edit Customer #{{ customer.Customer_ID }}</h3>
+
+<form method="post">
+  <div class="mb-3">
+    <label class="form-label">Username (readonly)</label>
+    <input class="form-control" value="{{ customer.Username }}" disabled>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Name</label>
+    <input class="form-control" name="name" value="{{ customer.Name }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Email</label>
+    <input class="form-control" name="email" value="{{ customer.Email }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Street</label>
+    <input class="form-control" name="street" value="{{ customer.Street }}">
+  </div>
+  <div class="mb-3">
+    <label class="form-label">City</label>
+    <input class="form-control" name="city" value="{{ customer.City }}">
+  </div>
+  <button class="btn btn-primary">Save</button>
+  <a class="btn btn-secondary" href="{{ url_for('customer_detail', customer_id=customer.Customer_ID) }}">Cancel</a>
+</form>
+{% endblock %}

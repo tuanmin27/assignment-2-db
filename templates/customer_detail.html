@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Customer #{{ customer.Customer_ID }}{% endblock %}
+{% block content %}
+<h3 class="mb-3">Customer #{{ customer.Customer_ID }}</h3>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h5 class="card-title">{{ customer.Name }}</h5>
+    <p><strong>Username:</strong> {{ customer.Username }}</p>
+    <p><strong>Email:</strong> {{ customer.Email }}</p>
+    <p><strong>Address:</strong> {{ customer.Street }}, {{ customer.City }}</p>
+
+    <h6>Phone numbers</h6>
+    {% if phones %}
+      <ul>
+      {% for p in phones %}
+        <li>
+          {{ p.Phone_number }} ({{ p.Phone_type }})
+          {% if p.Is_primary %}<span class="badge bg-success">Primary</span>{% endif %}
+        </li>
+      {% endfor %}
+      </ul>
+    {% else %}
+      <p><em>No phone numbers.</em></p>
+    {% endif %}
+
+    <a class="btn btn-secondary"
+       href="{{ url_for('customer_edit', customer_id=customer.Customer_ID) }}">Edit</a>
+    <a class="btn btn-outline-secondary"
+       href="{{ url_for('customer_list') }}">Back to list</a>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-4">
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5>Statistics</h5>
+        <p><strong>Total spent:</strong> {{ total_spent }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h4>Orders of this customer</h4>
+<table class="table table-bordered">
+  <thead>
+  <tr>
+    <th>Order ID</th>
+    <th>Order date</th>
+    <th>Delivery date</th>
+    <th>Status</th>
+    <th>Total cost</th>
+  </tr>
+  </thead>
+  <tbody>
+  {% for o in orders %}
+    <tr>
+      <td>{{ o.Order_ID }}</td>
+      <td>{{ o.Order_date }}</td>
+      <td>{{ o.Delivery_date }}</td>
+      <td>{{ o.Status }}</td>
+      <td>{{ o.Total_cost }}</td>
+    </tr>
+  {% endfor %}
+  {% if not orders %}
+    <tr><td colspan="5"><em>No orders.</em></td></tr>
+  {% endif %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Customers{% endblock %}
+{% block content %}
+<h3 class="mb-3">Customers</h3>
+
+<form class="row g-2 mb-3">
+  <div class="col-md-4">
+    <input class="form-control" name="q"
+           placeholder="Search name or email"
+           value="{{ search or '' }}">
+  </div>
+  <div class="col-md-4">
+    <select class="form-select" name="city">
+      <option value="">-- All cities --</option>
+      {% for c in cities %}
+        <option value="{{ c }}" {% if selected_city == c %}selected{% endif %}>
+          {{ c }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-4 d-flex align-items-end">
+    <button class="btn btn-secondary me-2">Filter</button>
+    <a class="btn btn-outline-secondary" href="{{ url_for('customer_list') }}">Reset</a>
+  </div>
+</form>
+
+<table class="table table-striped table-bordered">
+  <thead>
+  <tr>
+    <th>ID</th>
+    <th>Username</th>
+    <th>Name</th>
+    <th>Email</th>
+    <th>City</th>
+    <th>Primary phone</th>
+    <th>Actions</th>
+  </tr>
+  </thead>
+  <tbody>
+  {% for c in customers %}
+    <tr>
+      <td>{{ c.Customer_ID }}</td>
+      <td>{{ c.Username }}</td>
+      <td>{{ c.Name }}</td>
+      <td>{{ c.Email }}</td>
+      <td>{{ c.City }}</td>
+      <td>{{ c.PrimaryPhone or '-' }}</td>
+      <td>
+        <a class="btn btn-sm btn-primary"
+           href="{{ url_for('customer_detail', customer_id=c.Customer_ID) }}">Detail</a>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

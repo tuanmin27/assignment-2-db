@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Order #{{ order.Order_ID }}{% endblock %}
+{% block content %}
+<h3 class="mb-3">Order #{{ order.Order_ID }}</h3>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <p><strong>Address:</strong> {{ order.Address }}</p>
+    <p><strong>Order date:</strong> {{ order.Order_date }}</p>
+    <p><strong>Delivery date:</strong> {{ order.Delivery_date }}</p>
+    <p><strong>Total cost:</strong> {{ order.Total_cost }}</p>
+
+    <form class="row g-2" method="post"
+          action="{{ url_for('order_update_status', order_id=order.Order_ID) }}">
+      <div class="col-md-4">
+        <label class="form-label">Status</label>
+        <select class="form-select" name="status">
+          {% for st in status_choices %}
+            <option value="{{ st }}" {% if order.Status == st %}selected{% endif %}>{{ st }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4 d-flex align-items-end">
+        <button class="btn btn-primary">Update Status</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<h4>Order Items</h4>
+<table class="table table-bordered">
+  <thead>
+  <tr>
+    <th>Product</th>
+    <th>Quantity</th>
+    <th>Price</th>
+    <th>Line total</th>
+  </tr>
+  </thead>
+  <tbody>
+  {% for it in items %}
+    <tr>
+      <td>{{ it.ProductName }}</td>
+      <td>{{ it.quantity }}</td>
+      <td>{{ it.Price }}</td>
+      <td>{{ it.LineTotal }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h5 class="mt-4">Add item to this order</h5>
+<form class="row g-2" method="post"
+      action="{{ url_for('order_add_item', order_id=order.Order_ID) }}">
+  <div class="col-md-6">
+    <label class="form-label">Product</label>
+    <select class="form-select" name="product_id">
+      {% for p in products %}
+        <option value="{{ p.Product_ID }}">{{ p.Name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">Quantity</label>
+    <input class="form-control" name="quantity" value="1">
+  </div>
+  <div class="col-md-3 d-flex align-items-end">
+    <button class="btn btn-success w-100">Add Item</button>
+  </div>
+</form>
+
+<a class="btn btn-secondary mt-3" href="{{ url_for('order_list') }}">Back to Orders</a>
+{% endblock %}

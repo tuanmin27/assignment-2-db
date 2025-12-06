@@ -303,3 +303,447 @@ def report_top_products():
         selected_type=selected_type,
         min_qty=min_qty,
     )
+
+# ==========================
+#  HỆ THỐNG QUẢN LÝ ĐƠN HÀNG
+# ==========================
+
+STATUS_CHOICES = ["CONFIRMATION", "DELIVERY", "SUCCESS"]
+
+# LIST ORDERS + FILTER
+@app.route("/orders")
+@login_required
+def order_list():
+    status = request.args.get("status")
+    date_from = request.args.get("date_from")
+    date_to = request.args.get("date_to")
+
+    sql = """
+        SELECT Order_ID, Order_date, Delivery_date, Status, Total_cost, Address
+        FROM SHOPPING_ORDER
+        WHERE 1=1
+    """
+    params = []
+
+    if status:
+        sql += " AND Status = %s"
+        params.append(status)
+
+    if date_from:
+        sql += " AND Order_date >= %s"
+        params.append(date_from)
+
+    if date_to:
+        sql += " AND Order_date <= %s"
+        params.append(date_to)
+
+    sql += " ORDER BY Order_date DESC"
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(sql, params)
+    orders = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    return render_template(
+        "orders.html",
+        orders=orders,
+        status_choices=STATUS_CHOICES,
+        selected_status=status,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+
+# TẠO ĐƠN HÀNG MỚI
+@app.route("/orders/new", methods=["GET", "POST"])
+@login_required
+def order_create():
+    if request.method == "POST":
+        address = request.form.get("address")
+        status = request.form.get("status") or "CONFIRMATION"
+
+        if not address:
+            flash("Vui lòng nhập địa chỉ giao hàng", "danger")
+            return render_template(
+                "order_form.html",
+                status_choices=STATUS_CHOICES,
+                order=None,
+            )
+
+        if status not in STATUS_CHOICES:
+            flash("Trạng thái không hợp lệ", "danger")
+            return render_template(
+                "order_form.html",
+                status_choices=STATUS_CHOICES,
+                order=None,
+            )
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            # Không set Order_date, Delivery_date, Total_cost
+            # → trigger & default trong DB sẽ tự xử lý
+            cursor.execute(
+                """
+                INSERT INTO SHOPPING_ORDER (Address, Status)
+                VALUES (%s, %s)
+                """,
+                (address, status),
+            )
+            conn.commit()
+            new_id = cursor.lastrowid
+            flash(f"Tạo đơn hàng #{new_id} thành công", "success")
+            return redirect(url_for("order_detail", order_id=new_id))
+        except Exception as e:
+            conn.rollback()
+            flash(f"Lỗi khi tạo đơn hàng: {e}", "danger")
+        finally:
+            cursor.close()
+            conn.close()
+
+    return render_template(
+        "order_form.html",
+        status_choices=STATUS_CHOICES,
+        order=None,
+    )
+
+
+# XEM CHI TIẾT ĐƠN HÀNG (Order + Order Items)
+@app.route("/orders/<int:order_id>")
+@login_required
+def order_detail(order_id):
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Lấy thông tin chính của đơn
+    cursor.execute(
+        """
+        SELECT Order_ID, Order_date, Delivery_date, Status, Total_cost, Address
+        FROM SHOPPING_ORDER
+        WHERE Order_ID = %s
+        """,
+        (order_id,),
+    )
+    order = cursor.fetchone()
+
+    if not order:
+        cursor.close()
+        conn.close()
+        flash("Không tìm thấy đơn hàng", "warning")
+        return redirect(url_for("order_list"))
+
+    # Lấy các item trong đơn
+    cursor.execute(
+        """
+        SELECT oi.Product_ID, p.Name AS ProductName,
+               oi.quantity,
+               p.Price,
+               (oi.quantity * p.Price) AS LineTotal
+        FROM ORDER_ITEM oi
+        JOIN PRODUCT p ON p.Product_ID = oi.Product_ID
+        WHERE oi.Order_ID = %s
+        """,
+        (order_id,),
+    )
+    items = cursor.fetchall()
+
+    # Lấy danh sách product cho form "Add item"
+    cursor.execute(
+        "SELECT Product_ID, Name FROM PRODUCT ORDER BY Name"
+    )
+    products = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return render_template(
+        "order_detail.html",
+        order=order,
+        items=items,
+        products=products,
+        status_choices=STATUS_CHOICES,
+    )
+
+
+# CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG
+@app.route("/orders/<int:order_id>/update-status", methods=["POST"])
+@login_required
+def order_update_status(order_id):
+    new_status = request.form.get("status")
+
+    if new_status not in STATUS_CHOICES:
+        flash("Trạng thái không hợp lệ", "danger")
+        return redirect(url_for("order_detail", order_id=order_id))
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "UPDATE SHOPPING_ORDER SET Status = %s WHERE Order_ID = %s",
+            (new_status, order_id),
+        )
+        conn.commit()
+        flash("Cập nhật trạng thái đơn hàng thành công", "success")
+    except Exception as e:
+        conn.rollback()
+        flash(f"Lỗi khi cập nhật trạng thái: {e}", "danger")
+    finally:
+        cursor.close()
+        conn.close()
+
+    return redirect(url_for("order_detail", order_id=order_id))
+
+
+# THÊM ITEM VÀO ĐƠN HÀNG
+@app.route("/orders/<int:order_id>/add-item", methods=["POST"])
+@login_required
+def order_add_item(order_id):
+    product_id = request.form.get("product_id")
+    quantity = request.form.get("quantity")
+
+    if not product_id or not quantity:
+        flash("Vui lòng chọn sản phẩm và số lượng", "danger")
+        return redirect(url_for("order_detail", order_id=order_id))
+
+    try:
+        qty_int = int(quantity)
+    except ValueError:
+        flash("Số lượng phải là số nguyên", "danger")
+        return redirect(url_for("order_detail", order_id=order_id))
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        # Trigger trg_check_stock_before_order_item_insert
+        # sẽ kiểm tra stock & quantity > 0
+        # Trigger trg_update_order_total_after_order_item_insert
+        # sẽ cập nhật Total_cost cho SHOPPING_ORDER
+        cursor.execute(
+            """
+            INSERT INTO ORDER_ITEM (Order_ID, Product_ID, quantity)
+            VALUES (%s, %s, %s)
+            """,
+            (order_id, product_id, qty_int),
+        )
+        conn.commit()
+        flash("Thêm sản phẩm vào đơn hàng thành công", "success")
+    except Exception as e:
+        conn.rollback()
+        flash(f"Lỗi khi thêm sản phẩm (có thể do trigger kiểm tra stock): {e}", "danger")
+    finally:
+        cursor.close()
+        conn.close()
+
+    return redirect(url_for("order_detail", order_id=order_id))
+
+# ==========================
+#  HỆ THỐNG QUẢN LÝ KHÁCH HÀNG
+# ==========================
+
+# List customer + filter
+@app.route("/customers")
+@login_required
+def customer_list():
+    search = request.args.get("q", "")
+    city = request.args.get("city")
+
+    base_sql = """
+        SELECT c.Customer_ID,
+               u.Username,
+               u.Name,
+               u.Email,
+               u.Street,
+               u.City,
+               up.Phone_number AS PrimaryPhone
+        FROM CUSTOMER c
+        JOIN USER u ON u.User_ID = c.Customer_ID
+        LEFT JOIN USER_PHONE up
+               ON up.User_ID = u.User_ID AND up.Is_primary = TRUE
+    """
+    conditions = []
+    params = []
+
+    if search:
+        conditions.append("(u.Name LIKE %s OR u.Email LIKE %s)")
+        like = f"%{search}%"
+        params.extend([like, like])
+
+    if city:
+        conditions.append("u.City = %s")
+        params.append(city)
+
+    if conditions:
+        base_sql += " WHERE " + " AND ".join(conditions)
+
+    base_sql += " ORDER BY u.Name ASC"
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(base_sql, params)
+    customers = cursor.fetchall()
+
+    # Lấy danh sách city cho combobox filter
+    cursor.execute(
+        """
+        SELECT DISTINCT u.City
+        FROM CUSTOMER c
+        JOIN USER u ON u.User_ID = c.Customer_ID
+        WHERE u.City IS NOT NULL
+        ORDER BY u.City
+        """
+    )
+    cities = [row["City"] for row in cursor.fetchall()]
+
+    cursor.close()
+    conn.close()
+
+    return render_template(
+        "customers.html",
+        customers=customers,
+        cities=cities,
+        selected_city=city,
+        search=search,
+    )
+
+
+# Xem chi tiết 1 khách hàng (info + thống kê)
+@app.route("/customers/<int:customer_id>")
+@login_required
+def customer_detail(customer_id):
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Thông tin user
+    cursor.execute(
+        """
+        SELECT c.Customer_ID,
+               u.Username,
+               u.Name,
+               u.Email,
+               u.Street,
+               u.City
+        FROM CUSTOMER c
+        JOIN USER u ON u.User_ID = c.Customer_ID
+        WHERE c.Customer_ID = %s
+        """,
+        (customer_id,),
+    )
+    customer = cursor.fetchone()
+
+    if not customer:
+        cursor.close()
+        conn.close()
+        flash("Không tìm thấy khách hàng", "warning")
+        return redirect(url_for("customer_list"))
+
+    # Danh sách phone
+    cursor.execute(
+        """
+        SELECT Phone_number, Phone_type, Is_primary
+        FROM USER_PHONE
+        WHERE User_ID = %s
+        ORDER BY Is_primary DESC, Phone_type
+        """,
+        (customer_id,),
+    )
+    phones = cursor.fetchall()
+
+    # Tổng tiền đã chi (function fn_customer_total_spent)
+    cursor.execute(
+        "SELECT fn_customer_total_spent(%s) AS total_spent",
+        (customer_id,),
+    )
+    total_spent = cursor.fetchone()["total_spent"]
+
+    # Danh sách đơn hàng của customer
+    cursor.execute(
+        """
+        SELECT o.Order_ID, o.Order_date, o.Delivery_date, o.Status, o.Total_cost
+        FROM CUSTOMER c
+        JOIN OWN ow ON ow.Customer_ID = c.Customer_ID
+        JOIN SHOPPING_CART sc ON sc.Cart_ID = ow.Cart_ID
+        JOIN ORIGINATES_FROM ofr ON ofr.Cart_ID = sc.Cart_ID
+        JOIN SHOPPING_ORDER o ON o.Order_ID = ofr.Order_ID
+        WHERE c.Customer_ID = %s
+        ORDER BY o.Order_date DESC
+        """,
+        (customer_id,),
+    )
+    orders = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return render_template(
+        "customer_detail.html",
+        customer=customer,
+        phones=phones,
+        total_spent=total_spent,
+        orders=orders,
+    )
+
+
+# Cho phép chỉnh sửa thông tin cơ bản của khách hàng (bảng USER)
+@app.route("/customers/<int:customer_id>/edit", methods=["GET", "POST"])
+@login_required
+def customer_edit(customer_id):
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        """
+        SELECT c.Customer_ID,
+               u.Username,
+               u.Name,
+               u.Email,
+               u.Street,
+               u.City
+        FROM CUSTOMER c
+        JOIN USER u ON u.User_ID = c.Customer_ID
+        WHERE c.Customer_ID = %s
+        """,
+        (customer_id,),
+    )
+    customer = cursor.fetchone()
+
+    if not customer:
+        cursor.close()
+        conn.close()
+        flash("Không tìm thấy khách hàng", "warning")
+        return redirect(url_for("customer_list"))
+
+    if request.method == "POST":
+        name = request.form.get("name")
+        email = request.form.get("email")
+        street = request.form.get("street")
+        city = request.form.get("city")
+
+        if not name:
+            flash("Name không được để trống", "danger")
+            return render_template("customer_form.html", customer=customer)
+
+        try:
+            cursor2 = conn.cursor()
+            cursor2.execute(
+                """
+                UPDATE USER
+                SET Name = %s,
+                    Email = %s,
+                    Street = %s,
+                    City = %s
+                WHERE User_ID = %s
+                """,
+                (name, email, street, city, customer_id),
+            )
+            conn.commit()
+            cursor2.close()
+            flash("Cập nhật thông tin khách hàng thành công", "success")
+            return redirect(url_for("customer_detail", customer_id=customer_id))
+        except Exception as e:
+            conn.rollback()
+            flash(f"Lỗi khi cập nhật: {e}", "danger")
+
+    cursor.close()
+    conn.close()
+    return render_template("customer_form.html", customer=customer)
