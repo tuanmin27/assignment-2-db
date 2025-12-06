@@ -43,4 +43,14 @@
   <button class="btn btn-primary">Save</button>
   <a class="btn btn-secondary" href="{{ url_for('product_list') }}">Cancel</a>
 </form>
+{% if product %}
+<hr>
+<form method="post"
+      action="{{ url_for('product_delete', product_id=product.Product_ID) }}"
+      onsubmit="return confirm('Are you sure you want to delete this product?');">
+  <button class="btn btn-danger">
+    Delete this product
+  </button>
+</form>
+{% endif %}
 {% endblock %}

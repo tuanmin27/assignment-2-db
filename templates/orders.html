@@ -37,6 +37,7 @@
     <th>Status</th>
     <th>Total cost</th>
     <th>Address</th>
+    <th>Payment</th>
     <th>Actions</th>
   </tr>
   </thead>
@@ -49,6 +50,7 @@
       <td>{{ o.Status }}</td>
       <td>{{ o.Total_cost }}</td>
       <td>{{ o.Address }}</td>
+      <td>{{ o.Payment_type or '-' }}</td>
       <td>
         <a class="btn btn-sm btn-primary"
            href="{{ url_for('order_detail', order_id=o.Order_ID) }}">Detail</a>

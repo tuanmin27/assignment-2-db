@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Comments for {{ product.Name }}{% endblock %}
+
+{% block content %}
+<h3 class="mb-3">Comments for: {{ product.Name }}</h3>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <p><strong>Product ID:</strong> {{ product.Product_ID }}</p>
+    <p><strong>Type:</strong> {{ product.Type_name }}</p>
+    <p><strong>Shop:</strong> {{ product.Shop_name }}</p>
+    <p><strong>Price:</strong> {{ product.Price }}</p>
+    <p>
+      <strong>Average rating:</strong>
+      {% if avg_rating and avg_rating > 0 %}
+        {{ avg_rating }}/5
+      {% else %}
+        No ratings yet
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+<h4 class="mt-4 mb-2">Add new comment</h4>
+<form method="post" class="row g-2 mb-4">
+  <div class="col-md-4">
+    <label class="form-label">Customer</label>
+    <select class="form-select" name="customer_id" required>
+      <option value="">-- Select customer --</option>
+      {% for c in customers %}
+        <option value="{{ c.Customer_ID }}">{{ c.Name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label">Rating</label>
+    <select class="form-select" name="rate" required>
+      <option value="">-</option>
+      {% for r in [1,2,3,4,5] %}
+        <option value="{{ r }}">{{ r }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-6">
+    <label class="form-label">Content</label>
+    <textarea class="form-control" name="content" rows="1"
+              placeholder="Write a short comment (optional)"></textarea>
+  </div>
+  <div class="col-12 mt-2">
+    <button class="btn btn-primary">Add Comment</button>
+    <a href="{{ url_for('product_list') }}" class="btn btn-secondary">Back to Products</a>
+  </div>
+</form>
+
+<h4 class="mb-2">Existing comments</h4>
+<table class="table table-striped table-bordered">
+  <thead>
+  <tr>
+    <th>ID</th>
+    <th>Customer</th>
+    <th>Rating</th>
+    <th>Content</th>
+    <th>Date</th>
+  </tr>
+  </thead>
+  <tbody>
+  {% for c in comments %}
+    <tr>
+      <td>{{ c.Comment_ID }}</td>
+      <td>{{ c.CustomerName }}</td>
+      <td>{{ c.Rate }}/5</td>
+      <td>{{ c.Content }}</td>
+      <td>{{ c.Comment_date }}</td>
+    </tr>
+  {% endfor %}
+  {% if not comments %}
+    <tr>
+      <td colspan="5"><em>No comments for this product.</em></td>
+    </tr>
+  {% endif %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Vouchers{% endblock %}
+
+{% block content %}
+<h3 class="mb-3">Vouchers</h3>
+
+<table class="table table-striped table-bordered">
+  <thead>
+  <tr>
+    <th>ID</th>
+    <th>Type</th>
+    <th>Value</th>
+    <th>Remaining date</th>
+    <th>Scope</th>
+    <th>Applied to</th>
+  </tr>
+  </thead>
+  <tbody>
+  {% for v in vouchers %}
+    <tr>
+      <td>{{ v.Voucher_ID }}</td>
+      <td>{{ v.VoucherType }}</td>
+      <td>{{ v.Value }}</td>
+      <td>{{ v.Remaining_Date }}</td>
+      <td>
+        {% if v.ScopeType == 'SHOP' %}
+          Shop: {{ v.Shop_name }}
+        {% elif v.ScopeType == 'TYPE' %}
+          Type: {{ v.Type_name }}
+        {% else %}
+          (Global / No scope)
+        {% endif %}
+      </td>
+      <td>
+        {# sau này nếu muốn có màn liệt kê order dùng voucher này thì sẽ link ở đây #}
+        –
+      </td>
+    </tr>
+  {% endfor %}
+  {% if not vouchers %}
+    <tr>
+      <td colspan="6"><em>No vouchers.</em></td>
+    </tr>
+  {% endif %}
+  </tbody>
+</table>
+{% endblock %}

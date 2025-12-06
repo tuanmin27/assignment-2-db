@@ -3,7 +3,7 @@ from mysql.connector import Error
 
 DB_CONFIG = {
     "host": "localhost",
-    "database": "ECommerceDB_Final_Part1",   # đúng tên DB
+    "database": "EcommerceDB",   # đúng tên DB
     "user": "sManager",                      # đúng user bạn tạo
     "password": "123456",                   # đúng mật khẩu bạn đã set
 }

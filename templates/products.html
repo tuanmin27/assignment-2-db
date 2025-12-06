@@ -47,6 +47,7 @@
   <thead>
   <tr>
     <th>ID</th><th>Name</th><th>Type</th><th>Shop</th>
+    <th>Avg rating</th>
     <th>Price</th><th>Quantity</th><th>Actions</th>
   </tr>
   </thead>
@@ -60,14 +61,17 @@
       <td>{{ p.Price }}</td>
       <td>{{ p.Quantity }}</td>
       <td>
+        {% if p.AvgRating and p.AvgRating > 0 %}
+          {{ p.AvgRating }}/5
+        {% else %}
+          -
+        {% endif %}
+      </td>
+      <td>
         <a class="btn btn-sm btn-primary"
            href="{{ url_for('product_edit', product_id=p.Product_ID) }}">Edit</a>
-        <form method="post"
-              action="{{ url_for('product_delete', product_id=p.Product_ID) }}"
-              style="display:inline"
-              onsubmit="return confirm('Delete this product?');">
-          <button class="btn btn-sm btn-danger">Delete</button>
-        </form>
+          <a class="btn btn-sm btn-info ms-1"
+          href="{{ url_for('product_comments', product_id=p.Product_ID) }}">Comments</a>
       </td>
     </tr>
   {% endfor %}

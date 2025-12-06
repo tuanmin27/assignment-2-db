@@ -75,11 +75,16 @@ def product_list():
     sort = request.args.get("sort")  # PRICE_ASC, PRICE_DESC, NAME_ASC, NAME_DESC
 
     base_sql = """
-        SELECT p.Product_ID, p.Name, p.Price, p.Quantity,
-               t.Type_name, s.Shop_name
-        FROM PRODUCT p
-        JOIN TYPE t ON t.Type_ID = p.Type_ID
-        JOIN SHOP s ON s.Shop_ID = p.Shop_ID
+        SELECT p.Product_ID,
+           p.Name,
+           p.Price,
+           p.Quantity,
+           t.Type_name,
+           s.Shop_name,
+           fn_product_avg_rating(p.Product_ID) AS AvgRating
+    FROM PRODUCT p
+    JOIN TYPE t ON t.Type_ID = p.Type_ID
+    JOIN SHOP s ON s.Shop_ID = p.Shop_ID
     """
     conditions = []
     params = []
@@ -259,6 +264,120 @@ def product_delete(product_id):
 
     return redirect(url_for("product_list"))
 
+# ====== COMMENTS / RATING CHO PRODUCT ======
+@app.route("/products/<int:product_id>/comments", methods=["GET", "POST"])
+@login_required
+def product_comments(product_id):
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Lấy thông tin sản phẩm
+    cursor.execute(
+        """
+        SELECT p.Product_ID, p.Name, p.Price, t.Type_name, s.Shop_name
+        FROM PRODUCT p
+        JOIN TYPE t ON t.Type_ID = p.Type_ID
+        JOIN SHOP s ON s.Shop_ID = p.Shop_ID
+        WHERE p.Product_ID = %s
+        """,
+        (product_id,),
+    )
+    product = cursor.fetchone()
+
+    if not product:
+        cursor.close()
+        conn.close()
+        flash("Không tìm thấy sản phẩm", "warning")
+        return redirect(url_for("product_list"))
+
+    # Nếu submit form thêm comment
+    if request.method == "POST":
+        customer_id = request.form.get("customer_id")
+        content = request.form.get("content")
+        rate = request.form.get("rate")
+
+        error = None
+        if not customer_id or not rate:
+            error = "Please choose customer and rating."
+        else:
+            try:
+                rate_int = int(rate)
+            except ValueError:
+                rate_int = 0
+            if rate_int < 1 or rate_int > 5:
+                error = "Rating must be between 1 and 5."
+
+        if error:
+            flash(error, "danger")
+        else:
+            cursor2 = conn.cursor()
+            try:
+                cursor2.execute(
+                    """
+                    INSERT INTO COMMENT (Customer_ID, Product_ID, Content, Rate, Comment_date)
+                    VALUES (%s, %s, %s, %s, CURRENT_DATE())
+                    """,
+                    (customer_id, product_id, content, rate_int),
+                )
+                conn.commit()
+                flash("Added comment successfully.", "success")
+                cursor2.close()
+                # reload lại trang để thấy comment mới
+                return redirect(url_for("product_comments", product_id=product_id))
+            except Exception as e:
+                conn.rollback()
+                cursor2.close()
+                flash(f"Error while adding comment: {e}", "danger")
+
+    # Lấy danh sách comment của sản phẩm
+    cursor.execute(
+        """
+        SELECT cm.Comment_ID,
+               cm.Content,
+               cm.Rate,
+               cm.Comment_date,
+               c.Customer_ID,
+               u.Name AS CustomerName
+        FROM COMMENT cm
+        JOIN CUSTOMER c ON c.Customer_ID = cm.Customer_ID
+        JOIN USER u ON u.User_ID = c.Customer_ID
+        WHERE cm.Product_ID = %s
+        ORDER BY cm.Comment_date DESC, cm.Comment_ID DESC
+        """,
+        (product_id,),
+    )
+    comments = cursor.fetchall()
+
+    # Lấy average rating bằng function fn_product_avg_rating
+    cursor.execute(
+        "SELECT fn_product_avg_rating(%s) AS avg_rating",
+        (product_id,),
+    )
+    avg_row = cursor.fetchone()
+    avg_rating = avg_row["avg_rating"] if avg_row else 0
+
+    # Lấy danh sách customer cho combobox
+    cursor.execute(
+        """
+        SELECT c.Customer_ID, u.Name
+        FROM CUSTOMER c
+        JOIN USER u ON u.User_ID = c.Customer_ID
+        ORDER BY u.Name
+        """
+    )
+    customers = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return render_template(
+        "product_comments.html",
+        product=product,
+        comments=comments,
+        avg_rating=avg_rating,
+        customers=customers,
+    )
+
 # ====== REPORT: Top product theo Type (gọi SP) ======
 @app.route("/reports/top-products", methods=["GET", "POST"])
 @login_required
@@ -303,6 +422,43 @@ def report_top_products():
         selected_type=selected_type,
         min_qty=min_qty,
     )
+    
+# ====== VOUCHERS (COUPON / FREESHIP) ======
+@app.route("/vouchers")
+@login_required
+def voucher_list():
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute(
+        """
+        SELECT v.Voucher_ID,
+               v.Value,
+               v.Remaining_Date,
+               CASE
+                   WHEN c.Voucher_ID IS NOT NULL THEN 'COUPON'
+                   WHEN f.Voucher_ID IS NOT NULL THEN 'FREESHIP'
+                   ELSE 'UNKNOWN'
+               END AS VoucherType,
+               vs.ScopeType,
+               s.Shop_name,
+               t.Type_name
+        FROM VOUCHER v
+        LEFT JOIN COUPON c  ON c.Voucher_ID  = v.Voucher_ID
+        LEFT JOIN FREESHIP f ON f.Voucher_ID = v.Voucher_ID
+        LEFT JOIN VOUCHER_SCOPE vs ON vs.Voucher_ID = v.Voucher_ID
+        LEFT JOIN SHOP s ON s.Shop_ID = vs.Shop_ID
+        LEFT JOIN TYPE t ON t.Type_ID = vs.Type_ID
+        ORDER BY v.Voucher_ID
+        """
+    )
+
+    vouchers = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    return render_template("vouchers.html", vouchers=vouchers)
+
 
 # ==========================
 #  HỆ THỐNG QUẢN LÝ ĐƠN HÀNG
@@ -319,8 +475,16 @@ def order_list():
     date_to = request.args.get("date_to")
 
     sql = """
-        SELECT Order_ID, Order_date, Delivery_date, Status, Total_cost, Address
-        FROM SHOPPING_ORDER
+        SELECT o.Order_ID,
+               o.Order_date,
+               o.Delivery_date,
+               o.Status,
+               o.Total_cost,
+               o.Address,
+               pm.Payment_type
+        FROM SHOPPING_ORDER o
+        LEFT JOIN PAYMENT_METHOD pm
+               ON pm.Order_ID = o.Order_ID
         WHERE 1=1
     """
     params = []
@@ -409,15 +573,14 @@ def order_create():
         order=None,
     )
 
-
-# XEM CHI TIẾT ĐƠN HÀNG (Order + Order Items)
+# XEM CHI TIẾT ĐƠN HÀNG (Order + Items + Payment + Voucher)
 @app.route("/orders/<int:order_id>")
 @login_required
 def order_detail(order_id):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # Lấy thông tin chính của đơn
+    # Thông tin chính của đơn
     cursor.execute(
         """
         SELECT Order_ID, Order_date, Delivery_date, Status, Total_cost, Address
@@ -434,7 +597,7 @@ def order_detail(order_id):
         flash("Không tìm thấy đơn hàng", "warning")
         return redirect(url_for("order_list"))
 
-    # Lấy các item trong đơn
+    # Các dòng sản phẩm trong đơn
     cursor.execute(
         """
         SELECT oi.Product_ID, p.Name AS ProductName,
@@ -449,11 +612,61 @@ def order_detail(order_id):
     )
     items = cursor.fetchall()
 
-    # Lấy danh sách product cho form "Add item"
+    # Thông tin thanh toán
     cursor.execute(
-        "SELECT Product_ID, Name FROM PRODUCT ORDER BY Name"
+        """
+        SELECT pm.Payment_type,
+               b.Bank_name,
+               b.Account_number
+        FROM PAYMENT_METHOD pm
+        LEFT JOIN BANKING b ON b.Order_ID = pm.Order_ID
+        WHERE pm.Order_ID = %s
+        """,
+        (order_id,),
     )
-    products = cursor.fetchall()
+    payment = cursor.fetchone()
+
+    # Voucher coupon (nếu có)
+    cursor.execute(
+        """
+        SELECT ac.Voucher_ID,
+               v.Value,
+               v.Remaining_Date,
+               vs.ScopeType,
+               s.Shop_name,
+               t.Type_name
+        FROM APPLY_COUPON ac
+        JOIN COUPON c       ON c.Voucher_ID = ac.Voucher_ID
+        JOIN VOUCHER v      ON v.Voucher_ID = ac.Voucher_ID
+        LEFT JOIN VOUCHER_SCOPE vs ON vs.Voucher_ID = v.Voucher_ID
+        LEFT JOIN SHOP s    ON s.Shop_ID = vs.Shop_ID
+        LEFT JOIN TYPE t    ON t.Type_ID = vs.Type_ID
+        WHERE ac.Order_ID = %s
+        """,
+        (order_id,),
+    )
+    coupon = cursor.fetchone()
+
+    # Voucher freeship (nếu có)
+    cursor.execute(
+        """
+        SELECT af.Voucher_ID,
+               v.Value,
+               v.Remaining_Date,
+               vs.ScopeType,
+               s.Shop_name,
+               t.Type_name
+        FROM APPLY_FREESHIP af
+        JOIN FREESHIP f     ON f.Voucher_ID = af.Voucher_ID
+        JOIN VOUCHER v      ON v.Voucher_ID = af.Voucher_ID
+        LEFT JOIN VOUCHER_SCOPE vs ON vs.Voucher_ID = v.Voucher_ID
+        LEFT JOIN SHOP s    ON s.Shop_ID = vs.Shop_ID
+        LEFT JOIN TYPE t    ON t.Type_ID = vs.Type_ID
+        WHERE af.Order_ID = %s
+        """,
+        (order_id,),
+    )
+    freeship = cursor.fetchone()
 
     cursor.close()
     conn.close()
@@ -462,9 +675,12 @@ def order_detail(order_id):
         "order_detail.html",
         order=order,
         items=items,
-        products=products,
+        payment=payment,
+        coupon=coupon,
+        freeship=freeship,
         status_choices=STATUS_CHOICES,
     )
+
 
 
 # CẬP NHẬT TRẠNG THÁI ĐƠN HÀNG
@@ -489,6 +705,111 @@ def order_update_status(order_id):
     except Exception as e:
         conn.rollback()
         flash(f"Lỗi khi cập nhật trạng thái: {e}", "danger")
+    finally:
+        cursor.close()
+        conn.close()
+
+    return redirect(url_for("order_detail", order_id=order_id))
+
+# GÁN / GỠ COUPON CHO ĐƠN HÀNG
+@app.route("/orders/<int:order_id>/apply-coupon", methods=["POST"])
+@login_required
+def order_apply_coupon(order_id):
+    voucher_id = request.form.get("coupon_voucher_id")  # có thể rỗng để gỡ
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        if not voucher_id:
+            # Gỡ coupon ra khỏi đơn
+            cursor.execute(
+                "DELETE FROM APPLY_COUPON WHERE Order_ID = %s",
+                (order_id,),
+            )
+        else:
+            # Nếu đã có thì UPDATE, chưa có thì INSERT
+            cursor.execute(
+                "SELECT 1 FROM APPLY_COUPON WHERE Order_ID = %s",
+                (order_id,),
+            )
+            exists = cursor.fetchone()
+
+            if exists:
+                cursor.execute(
+                    """
+                    UPDATE APPLY_COUPON
+                    SET Voucher_ID = %s
+                    WHERE Order_ID = %s
+                    """,
+                    (voucher_id, order_id),
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO APPLY_COUPON (Voucher_ID, Order_ID)
+                    VALUES (%s, %s)
+                    """,
+                    (voucher_id, order_id),
+                )
+
+        conn.commit()
+        flash("Updated coupon voucher for order.", "success")
+    except Exception as e:
+        conn.rollback()
+        flash(f"Error while updating coupon: {e}", "danger")
+    finally:
+        cursor.close()
+        conn.close()
+
+    return redirect(url_for("order_detail", order_id=order_id))
+
+
+# GÁN / GỠ FREESHIP CHO ĐƠN HÀNG
+@app.route("/orders/<int:order_id>/apply-freeship", methods=["POST"])
+@login_required
+def order_apply_freeship(order_id):
+    voucher_id = request.form.get("freeship_voucher_id")  # có thể rỗng để gỡ
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        if not voucher_id:
+            cursor.execute(
+                "DELETE FROM APPLY_FREESHIP WHERE Order_ID = %s",
+                (order_id,),
+            )
+        else:
+            cursor.execute(
+                "SELECT 1 FROM APPLY_FREESHIP WHERE Order_ID = %s",
+                (order_id,),
+            )
+            exists = cursor.fetchone()
+
+            if exists:
+                cursor.execute(
+                    """
+                    UPDATE APPLY_FREESHIP
+                    SET Voucher_ID = %s
+                    WHERE Order_ID = %s
+                    """,
+                    (voucher_id, order_id),
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO APPLY_FREESHIP (Voucher_ID, Order_ID)
+                    VALUES (%s, %s)
+                    """,
+                    (voucher_id, order_id),
+                )
+
+        conn.commit()
+        flash("Updated freeship voucher for order.", "success")
+    except Exception as e:
+        conn.rollback()
+        flash(f"Error while updating freeship: {e}", "danger")
     finally:
         cursor.close()
         conn.close()
