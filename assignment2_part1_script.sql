@@ -1,5 +1,4 @@
 -- SETUP
-DROP DATABASE EcommerceDB;
 CREATE DATABASE ECommerceDB;
 USE ECommerceDB;
 
